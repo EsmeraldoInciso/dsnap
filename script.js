@@ -316,219 +316,53 @@ function renderLivePreviewAsync(callback) {
 // ─── QR badge on print ──────────────────────────────────────────
 
 function drawQRBadge() {
+  if (typeof qrcode === 'undefined') {
+    console.warn('[QR] qrcode library not loaded');
+    return;
+  }
+
   var canvas = document.getElementById('livePreviewCanvas');
   var ctx = canvas.getContext('2d');
   var cw = canvas.width, ch = canvas.height;
   var url = window.location.origin + '/Photobooth/gallery/';
 
-  // Generate real QR matrix
-  var matrix = generateQR(url);
-  if (!matrix || matrix.length === 0) return;
+  try {
+    var qr = qrcode(0, 'L');
+    qr.addData(url);
+    qr.make();
 
-  var modules = matrix.length;
-  var qrPixelSize = Math.floor(Math.min(cw, ch) * 0.085 / modules);
-  var qrSize = modules * qrPixelSize;
-  var margin = qrPixelSize * 2;
-  var totalSize = qrSize + margin * 2;
+    var modules = qr.getModuleCount();
+    var pixelSize = Math.max(2, Math.floor(Math.min(cw, ch) * 0.09 / modules));
+    var qrSize = modules * pixelSize;
+    var padding = pixelSize * 2;
+    var totalW = qrSize + padding * 2;
+    var totalH = totalW + pixelSize * 3; // extra for label
 
-  var x = cw - totalSize - cw * 0.03;
-  var y = ch - totalSize - ch * 0.015;
+    var x = cw - totalW - cw * 0.03;
+    var y = ch - totalH - ch * 0.01;
 
-  // White background
-  ctx.fillStyle = '#FFFFFF';
-  roundRect(ctx, x, y, totalSize, totalSize + qrPixelSize * 2.5, 4);
-  ctx.fill();
+    // White background
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(x, y, totalW, totalH);
 
-  // Draw QR modules
-  for (var row = 0; row < modules; row++) {
-    for (var col = 0; col < modules; col++) {
-      if (matrix[row][col]) {
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(x + margin + col * qrPixelSize, y + margin + row * qrPixelSize, qrPixelSize, qrPixelSize);
-      }
-    }
-  }
-
-  // Label
-  ctx.fillStyle = '#666666';
-  ctx.font = '600 ' + (qrPixelSize * 1.8) + 'px "DM Sans", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Gallery', x + totalSize / 2, y + totalSize + qrPixelSize * 1.8);
-}
-
-// ─── Minimal QR Code Generator (Version 2, Mode Byte) ──────────
-// Encodes short URLs into a real scannable QR code
-
-function generateQR(text) {
-  // QR Version 2: 25x25 modules, Error Correction Level L
-  var size = 25;
-  var grid = [];
-  for (var i = 0; i < size; i++) { grid[i] = []; for (var j = 0; j < size; j++) grid[i][j] = 0; }
-  var reserved = [];
-  for (var i = 0; i < size; i++) { reserved[i] = []; for (var j = 0; j < size; j++) reserved[i][j] = false; }
-
-  // Finder patterns
-  function drawFinder(r, c) {
-    for (var dr = -1; dr <= 7; dr++) for (var dc = -1; dc <= 7; dc++) {
-      var rr = r + dr, cc = c + dc;
-      if (rr < 0 || rr >= size || cc < 0 || cc >= size) continue;
-      reserved[rr][cc] = true;
-      if (dr >= 0 && dr <= 6 && dc >= 0 && dc <= 6) {
-        if (dr === 0 || dr === 6 || dc === 0 || dc === 6 || (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4))
-          grid[rr][cc] = 1;
-        else grid[rr][cc] = 0;
-      } else grid[rr][cc] = 0;
-    }
-  }
-  drawFinder(0, 0); drawFinder(0, size - 7); drawFinder(size - 7, 0);
-
-  // Alignment pattern at (18,18) for version 2
-  for (var dr = -2; dr <= 2; dr++) for (var dc = -2; dc <= 2; dc++) {
-    var rr = 18 + dr, cc = 18 + dc;
-    reserved[rr][cc] = true;
-    if (Math.abs(dr) === 2 || Math.abs(dc) === 2 || (dr === 0 && dc === 0)) grid[rr][cc] = 1;
-    else grid[rr][cc] = 0;
-  }
-
-  // Timing patterns
-  for (var i = 8; i < size - 8; i++) {
-    reserved[6][i] = true; grid[6][i] = i % 2 === 0 ? 1 : 0;
-    reserved[i][6] = true; grid[i][6] = i % 2 === 0 ? 1 : 0;
-  }
-
-  // Dark module
-  reserved[size - 8][8] = true; grid[size - 8][8] = 1;
-
-  // Reserve format info areas
-  for (var i = 0; i < 9; i++) { reserved[8][i] = true; reserved[i][8] = true; }
-  for (var i = 0; i < 8; i++) { reserved[8][size - 1 - i] = true; reserved[size - 1 - i][8] = true; }
-
-  // Encode data (byte mode, ECL L)
-  var data = encodeQRData(text);
-
-  // Place data bits
-  var bitIdx = 0;
-  var upward = true;
-  for (var col = size - 1; col >= 1; col -= 2) {
-    if (col === 6) col = 5; // skip timing column
-    for (var cnt = 0; cnt < size; cnt++) {
-      var row = upward ? size - 1 - cnt : cnt;
-      for (var dc = 0; dc <= 1; dc++) {
-        var c = col - dc;
-        if (!reserved[row][c]) {
-          grid[row][c] = bitIdx < data.length ? data[bitIdx] : 0;
-          bitIdx++;
+    // QR modules
+    for (var row = 0; row < modules; row++) {
+      for (var col = 0; col < modules; col++) {
+        if (qr.isDark(row, col)) {
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(x + padding + col * pixelSize, y + padding + row * pixelSize, pixelSize, pixelSize);
         }
       }
     }
-    upward = !upward;
+
+    // Label
+    ctx.fillStyle = '#555555';
+    ctx.font = '600 ' + Math.max(10, pixelSize * 2) + 'px "DM Sans", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Gallery', x + totalW / 2, y + padding + qrSize + padding + pixelSize);
+  } catch(e) {
+    console.warn('[QR] Generation failed:', e);
   }
-
-  // Apply mask 0 (checkerboard) and XOR
-  for (var r = 0; r < size; r++) for (var c = 0; c < size; c++) {
-    if (!reserved[r][c] && (r + c) % 2 === 0) grid[r][c] ^= 1;
-  }
-
-  // Write format info for mask 0, ECL L = 0b111011111000100
-  var fmt = [1,1,1,0,1,1,1,1,1,0,0,0,1,0,0];
-  // Around top-left finder
-  var fmtPos1 = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
-  // Around other finders
-  var fmtPos2 = [[size-1,8],[size-2,8],[size-3,8],[size-4,8],[size-5,8],[size-6,8],[size-7,8],[8,size-8],[8,size-7],[8,size-6],[8,size-5],[8,size-4],[8,size-3],[8,size-2],[8,size-1]];
-  for (var i = 0; i < 15; i++) {
-    grid[fmtPos1[i][0]][fmtPos1[i][1]] = fmt[i];
-    grid[fmtPos2[i][0]][fmtPos2[i][1]] = fmt[i];
-  }
-
-  return grid;
-}
-
-function encodeQRData(text) {
-  // Byte mode indicator: 0100, Character count (8 bits for V2)
-  var bits = [0,1,0,0]; // mode
-  var len = text.length;
-  for (var i = 7; i >= 0; i--) bits.push((len >> i) & 1);
-  // Data bytes
-  for (var i = 0; i < text.length; i++) {
-    var b = text.charCodeAt(i) & 0xFF;
-    for (var j = 7; j >= 0; j--) bits.push((b >> j) & 1);
-  }
-  // Terminator
-  for (var i = 0; i < 4 && bits.length < 272; i++) bits.push(0);
-  // Pad to byte boundary
-  while (bits.length % 8 !== 0) bits.push(0);
-  // Pad bytes
-  var padBytes = [0xEC, 0x11];
-  var pi = 0;
-  while (bits.length < 272) {
-    var pb = padBytes[pi % 2]; pi++;
-    for (var j = 7; j >= 0; j--) bits.push((pb >> j) & 1);
-  }
-
-  // Generate error correction (simplified — Reed-Solomon for V2-L: 34 data, 10 EC)
-  var dataBytes = [];
-  for (var i = 0; i < bits.length; i += 8) {
-    var b = 0;
-    for (var j = 0; j < 8 && i + j < bits.length; j++) b = (b << 1) | bits[i + j];
-    dataBytes.push(b);
-  }
-
-  var ecBytes = rsEncode(dataBytes, 10);
-
-  // Interleave (V2 has single block) and convert to bits
-  var allBytes = dataBytes.concat(ecBytes);
-  var allBits = [];
-  for (var i = 0; i < allBytes.length; i++) {
-    for (var j = 7; j >= 0; j--) allBits.push((allBytes[i] >> j) & 1);
-  }
-  return allBits;
-}
-
-// Reed-Solomon GF(256) with primitive polynomial 0x11D
-function rsEncode(data, numEC) {
-  var gfExp = new Array(512), gfLog = new Array(256);
-  var v = 1;
-  for (var i = 0; i < 255; i++) {
-    gfExp[i] = v; gfLog[v] = i;
-    v <<= 1; if (v >= 256) v ^= 0x11D;
-  }
-  for (var i = 255; i < 512; i++) gfExp[i] = gfExp[i - 255];
-
-  function gfMul(a, b) { return a === 0 || b === 0 ? 0 : gfExp[gfLog[a] + gfLog[b]]; }
-
-  // Generator polynomial
-  var gen = [1];
-  for (var i = 0; i < numEC; i++) {
-    var ng = new Array(gen.length + 1).fill(0);
-    for (var j = 0; j < gen.length; j++) {
-      ng[j] ^= gen[j];
-      ng[j + 1] ^= gfMul(gen[j], gfExp[i]);
-    }
-    gen = ng;
-  }
-
-  // Division
-  var msg = data.slice();
-  for (var i = 0; i < numEC; i++) msg.push(0);
-  for (var i = 0; i < data.length; i++) {
-    var coeff = msg[i];
-    if (coeff !== 0) {
-      for (var j = 0; j < gen.length; j++) {
-        msg[i + j] ^= gfMul(gen[j], coeff);
-      }
-    }
-  }
-  return msg.slice(data.length);
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
 }
 
 // ═══════════════════════════════════════════════════════════════
