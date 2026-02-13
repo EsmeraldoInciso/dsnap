@@ -130,6 +130,7 @@ function startCapture() {
       state.isCapturing = false;
       document.getElementById('btnCapture').disabled = false;
       document.getElementById('shotCounter').classList.remove('visible');
+      document.getElementById('previewActions').style.display = 'flex';
       showReviewScreen();
     }
 
@@ -155,6 +156,7 @@ function captureSequence(i, total) {
     state.boothComplete = true;
     document.getElementById('btnCapture').disabled = false;
     document.getElementById('shotCounter').classList.remove('visible');
+    document.getElementById('previewActions').style.display = 'flex';
     showReviewScreen();
     return;
   }
@@ -230,13 +232,20 @@ function initiateRetake(idx) {
 function approveAllPhotos() {
   document.getElementById('reviewModal').classList.remove('active');
   document.getElementById('previewActions').style.display = 'flex';
+  showStatus('Rendering final photo...', 'info');
 
-  // Render final canvas with all images loaded, THEN save
+  // Wait for all images to load into canvas, THEN add QR and save
   renderLivePreviewAsync(function() {
     if (state.settings.showQR) drawQRBadge();
-    if (state.settings.saveToGallery) saveToGallery();
+
+    // Now canvas is fully rendered — safe to save
+    if (state.settings.saveToGallery) {
+      saveToGallery();
+      showStatus('Saved to gallery!', 'success');
+    } else {
+      showStatus('Photos approved!', 'success');
+    }
     startKioskTimer();
-    showStatus('Photos approved!', 'success');
   });
 }
 
