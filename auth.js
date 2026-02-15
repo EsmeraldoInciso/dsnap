@@ -61,6 +61,7 @@ function showPage() {
 
 var PAGE_TYPE = window.PAGE_TYPE || 'private';
 var authResolved = false;
+var signupInProgress = false;
 
 console.log('[Auth] PAGE_TYPE=' + PAGE_TYPE);
 
@@ -73,6 +74,9 @@ if (auth) {
       var isGoogle = user.providerData.length > 0 && user.providerData[0].providerId === 'google.com';
 
       if (PAGE_TYPE === 'public') {
+        // Don't redirect while signup is still sending the verification email
+        if (signupInProgress) return;
+
         // If unverified email user arrives at ?verify=1, stay on this page
         if (!isGoogle && !user.emailVerified && window.location.search.indexOf('verify=1') !== -1) {
           showPage();
@@ -198,6 +202,7 @@ function handleLogin(email, password) {
 }
 
 function handleSignup(name, email, password) {
+  signupInProgress = true;
   return checkDeviceSignupLimit().then(function(r) {
     if (!r.allowed) throw { code: 'device-limit', message: 'Signup limit reached (max ' + MAX_SIGNUPS_PER_DEVICE + '/day). Try tomorrow.' };
     return getRecaptchaToken('signup');
@@ -209,6 +214,12 @@ function handleSignup(name, email, password) {
     return recordDeviceSignup().then(function() { return cred; });
   }).then(function(cred) {
     return cred.user.sendEmailVerification().then(function() { return cred; });
+  }).then(function(cred) {
+    signupInProgress = false;
+    return cred;
+  }).catch(function(err) {
+    signupInProgress = false;
+    throw err;
   });
 }
 
