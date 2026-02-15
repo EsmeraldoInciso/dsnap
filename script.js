@@ -282,10 +282,9 @@ function saveToGalleryWithQR() {
 
   if (canSaveToCloud) {
     var uid = user ? user.uid : 'anon';
-    db.collection('gallery').get()
+    db.collection('gallery').where('userId', '==', uid).get()
       .then(function(snapshot) {
-        var myCount = 0;
-        snapshot.forEach(function(d) { if (d.data().userId === uid) myCount++; });
+        var myCount = snapshot.size;
         if (myCount < MAX_FIREBASE_GALLERY) {
           entry.createdAt = firebase.firestore.FieldValue.serverTimestamp();
           entry.storage = 'cloud';
@@ -479,10 +478,9 @@ function saveToGallery(callback) {
 
   if (typeof db !== 'undefined' && db) {
     var uid = user ? user.uid : 'anon';
-    db.collection('gallery').get()
+    db.collection('gallery').where('userId', '==', uid).get()
       .then(function(snapshot) {
-        var myCount = 0;
-        snapshot.forEach(function(d) { if (d.data().userId === uid) myCount++; });
+        var myCount = snapshot.size;
         if (myCount < MAX_FIREBASE_GALLERY) {
           entry.createdAt = firebase.firestore.FieldValue.serverTimestamp();
           entry.storage = 'cloud';
