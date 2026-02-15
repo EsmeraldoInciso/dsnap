@@ -219,11 +219,13 @@
           });
       } else if (photo.storage === 'local') {
         try {
-          var local = JSON.parse(localStorage.getItem('pb_gallery') || '[]');
+          var lkey = 'dsnap_gallery';
+          try { var u = firebase.auth().currentUser; if (u) lkey = 'dsnap_gallery_' + u.uid; } catch(e) {}
+          var local = JSON.parse(localStorage.getItem(lkey) || '[]');
           for (var i = 0; i < local.length; i++) {
             if (local[i].imageData === photo.imageData) { local.splice(i, 1); break; }
           }
-          localStorage.setItem('pb_gallery', JSON.stringify(local));
+          localStorage.setItem(lkey, JSON.stringify(local));
         } catch(e) {}
         galleryPhotos.splice(idx, 1);
         showGallery();
